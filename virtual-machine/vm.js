@@ -1,8 +1,6 @@
-// process.on('message', message => {
+const { parentPort } = require('worker_threads');
 
-// });
-
-let commands = [];
+let commands = []; // all commands
 const RAM_SIZE = 4096;
 
 const REG_A = 0;
@@ -19,13 +17,15 @@ const FLAGS_OV = 0x1;
 const FLAGS_Z = 0x2;
 
 class Process {
-    constructor() {
-        this.registers = new Uint32Array(7); // 4 registers + SP, PC, and Flags
+    // owner : user id
+    constructor(owner) {
+        this.owner = owner;
 
-        this.stackPointer = RAM_SIZE - 1;
-        this.programCounter = 0;
+        this.registers = new Uint32Array(7); // 4 registers + SP, PC, and Flags
         this.ram = []
         this.consts = new Uint8Array(256); // limited to 256 bytes
+
+        this.waiting = false;
     }
 
     loadProcess(proc_bytes, proc_consts) {
@@ -34,7 +34,9 @@ class Process {
     }
 
     execNext() {
-        let instruction = [this.programCounter++];
+        let instruction = [this.registers[REG_PC]];
+        this.registers[REG_PC] = (this.registers[REG_PC] + 1) | 0;
+
         let command = commands[(instruction >>> 24) & 0xFF];
 
         if (command) {
@@ -425,3 +427,55 @@ commands[0x19] = function sysCALL(process, instruction) {
 // 0x20 reserved NOP
 commands[0x20] = function NOP(process, instruction) {
 }
+
+
+// Actual VM
+let active_processes = []
+let current_process = -1;
+let isRunning = false;
+
+async function runCurrentProcess() {
+    if (current_process !== -1) {
+        process = active_processes[current_process];
+
+        try {
+            // run up to 64 instructions
+            for (let i = 0; i < 64 && !process.waiting; i++) {
+                process.execNext();
+            }
+        } catch (e) {
+            parentPort.postMessage({ type: 'perror', uid: process.owner, error: e});
+        }
+    }
+}
+
+async function runVirtualMachine() {
+    if (!isRunning) {
+        isRunning = true;
+
+        while (current_process > 0) {
+            await runCurrentProcess();
+            current_process--;
+        }
+    
+        current_process = active_processes.length - 1;
+
+        isRunning = false;
+    }
+}
+
+// 'Interrupts'
+
+parentPort.on('message', message => {
+    if (message.type === 'sigkill') {
+        ;
+    } else if (message.type === 'exec') {
+        ;
+    } else if (message.type === 'sysreturn') {
+        ;
+    }
+});
+
+// Run VM methods every 250 ms
+// This means each process can theoretically run 64*4 = 256 instructions per second.
+setInterval(runVirtualMachine, 250);
