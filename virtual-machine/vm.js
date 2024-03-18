@@ -411,3 +411,5 @@ commands[0x19] = function sysCALL(process, instruction) {
 }
 
 // 0x20 reserved NOP
+commands[0x20] = function NOP(process, instruction) {
+}
