@@ -39,6 +39,8 @@ class Process {
 
         if (command) {
             command(this, instruction);
+        } else {
+            throw new Error(`Invalid instruction (${(instruction >>> 24) & 0xFF} ${(instruction >>> 16) & 0xFF} ${(instruction >>> 8) & 0xFF} ${(instruction >>> 24) & 0xFF}). Exiting`)
         }
     }
 
@@ -55,7 +57,7 @@ class Process {
     }
 }
 
-// 0 is reserved for No-OP
+// 0 is reserved invalid instruction (as it is default memory)
 
 // 4 Bit Instructions
 //====================
@@ -399,7 +401,13 @@ commands[9] = function NOT(process, instruction) {
 commands[0x19] = function sysCALL(process, instruction) {
     const call = (instruction >>> 16) & 0xFF;
 
-    // set as 1's complement of the value
-    //process.registers[reg] = ~process.registers[reg];
+    // Syscalls (others invalid syscall)
+    // Exit (status code) - 1
+    // Print Constant - 2
+    // Print Ram (#bytes) 00 byte terminates early. - 3
+    // Read to Ram (#bytes. ascii. emojis in :...: form.) Early termination writes 00 and stops. - 4
+    // Set up interrupt for message string match (1 allowed) - 5
+    // (add embeds? check roles?)
 }
 
+// 0x20 reserved NOP
