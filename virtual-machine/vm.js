@@ -354,6 +354,18 @@ commands[0x1A] = function CMP(process, instruction) {
     }
 }
 
+
+// x1B: CAS [storeg] [cmpreg] [readreg]
+commands[0x1B] = function CompareAndSet(process, instruction) {
+    const storeg = (instruction >>> 16) & 0xFF;
+    const reg = (instruction >>> 8) & 0xFF;
+    const readreg = (instruction) & 0xFF;
+
+    if (process.registers[storeg] === process.registers[reg]) {
+        process.registers[storeg] = process.registers[readreg];
+    }
+}
+
 // 2 Bit Instructions
 //====================
 
