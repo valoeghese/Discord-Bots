@@ -1,0 +1,14 @@
+{
+  "name": "virtual-machine",
+  "version": "1.0.0",
+  "description": "virtual machine bot",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Mekal Covic",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "discord.js": "^14.14.1"
+  }
+}
