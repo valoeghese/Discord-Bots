@@ -7,6 +7,10 @@ if (isMainThread) {
     // Start the VM Worker
     const worker = new Worker("./vm.js");
 
+    // worker.on('message', (message) => {
+    //console.log('Received message from worker:', message);});
+    //worker.postMessage('Hello from the main thread!');
+    
     // Require the necessary discord.js classes
     const { Client, Events, GatewayIntentBits } = require('discord.js');
 
