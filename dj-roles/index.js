@@ -47,6 +47,7 @@ client.on(Events.MessageCreate, async (message) => {
                 if (lecturerCount < 5) {
                     message.react("🤔");
                     message.reply("You need at least 5 lecturers to unlock this feature :eyes:");
+                    return;
                 }
 
                 message.member.roles.add(jsonData[role[0]])
