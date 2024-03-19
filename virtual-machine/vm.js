@@ -18,12 +18,13 @@ const FLAGS_Z = 0x2;
 
 class Process {
     // owner : user id
-    constructor(owner) {
+    constructor(owner, channel) {
         this.owner = owner;
+        this.channel = channel;
 
         this.registers = new Uint32Array(7); // 4 registers + SP, PC, and Flags
         this.ram = []
-        this.consts = new Uint8Array(256); // limited to 256 bytes
+        this.consts = null; // limited to 256 bytes
 
         this.waiting = false;
         this.killed = false;
@@ -496,7 +497,8 @@ commands[0x19] = function sysCALL(process, instruction) {
 
         parentPort.postMessage({
             "type": "message",
-            "message": string
+            "message": string,
+            "channel": process.channel
         });
         break;
     case 0x3: // print ram
@@ -522,7 +524,8 @@ commands[0x19] = function sysCALL(process, instruction) {
 
         parentPort.postMessage({
             "type": "message",
-            "message": ram_message
+            "message": ram_message,
+            "channel": process.channel
         });
         break;
     case 0x4: // read to ram
