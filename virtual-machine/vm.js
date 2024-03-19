@@ -26,6 +26,8 @@ class Process {
         this.consts = new Uint8Array(256); // limited to 256 bytes
 
         this.waiting = false;
+        this.killed = false;
+        this.status = 0; // exit code
     }
 
     loadProcess(proc_bytes, proc_consts) {
@@ -368,6 +370,46 @@ commands[0x1B] = function CompareAndSet(process, instruction) {
     }
 }
 
+// x1C: PEEK [reg] [offset]
+// peek at the stack at the given +offset (16 bit). Does not wrap around.
+commands[0x1C] = function PEEK(process, instruction) {
+    const storeg = (instruction >>> 16) & 0xFF;
+    const offset = (instruction) & 0xFFFF;
+
+    const ramAddr = process.registers[REG_SP] + offset;
+
+    if (ramAddr >= RAM_SIZE) {
+        throw new Error("Bus Error");
+    }
+
+    process.registers[storeg] = process.ram[ramAddr];
+}
+
+
+// x1D: SHL [reg] [amt] <unused>
+commands[0x1D] = function SHL(process, instruction) {
+    const storeg = (instruction >>> 16) & 0xFF;
+    const amt = (instruction >>> 8) & 0xFF;
+
+    process.registers[storeg] = process.registers[storeg] << amt;
+}
+
+// x1E: SHR [reg] [amt] <unused>
+commands[0x1E] = function SHR(process, instruction) {
+    const storeg = (instruction >>> 16) & 0xFF;
+    const amt = (instruction >>> 8) & 0xFF;
+
+    process.registers[storeg] = process.registers[storeg] >>> amt;
+}
+
+// x1F: Signed SHR [reg] [amt] <unused>
+commands[0x1F] = function SSHR(process, instruction) {
+    const storeg = (instruction >>> 16) & 0xFF;
+    const amt = (instruction >>> 8) & 0xFF;
+
+    process.registers[storeg] = process.registers[storeg] >> amt;
+}
+
 // 2 Bit Instructions
 //====================
 
@@ -412,16 +454,84 @@ commands[9] = function NOT(process, instruction) {
 }
 
 // x19: sysCALL [call]
+// Syscalls (others invalid syscall).
+    // Exit - 1 (#status: A)
+    // Print Constant - 2 (#address: A, #length: C) 00 byte terminates early. Ascii. Max length 256. Not wrapping.
+    // Print Ram - 3 (#address: A, #length: C) NULL terminates early. Max length 1024. Not wrapping.
+    // Read to Ram - 4 (#address: A, #length: C). Early termination writes NULL and stops. Max length 1024. Not Wrapping.
+    // React to Message - 5 (#emoji: A, #messageid: B) -- emoji is the unicode of the emoji, or, if 256 and lower
 commands[0x19] = function sysCALL(process, instruction) {
     const call = (instruction >>> 16) & 0xFF;
+    process.waiting = true; // sys calls prompt a program wait.
 
-    // Syscalls (others invalid syscall)
-    // Exit (status code) - 1
-    // Print Constant - 2
-    // Print Ram (#bytes) 00 byte terminates early. - 3
-    // Read to Ram (#bytes. ascii. emojis in :...: form.) Early termination writes 00 and stops. - 4
-    // Set up interrupt for message string match (1 allowed) - 5
-    // (add embeds? check roles?)
+    let address;
+    let length;
+
+    switch (call) {
+    case 0x1: // exit
+        process.killed = true;
+        process.status = process.registers[REG_A];
+        break;
+    case 0x2: // print constant
+        address = process.registers[REG_A];
+        length = process.registers[REG_C] & 0xFF; // max length 256
+
+        let message = new Uint8Array(length);
+
+        for (let i = 0; i < length; i++) {
+            if (address > process.consts.length) {
+                throw new Error(`No constant at index ${address}`);
+            }
+            
+            message[i] = process.consts[address];
+
+            if (message[i] === '\0') {
+                break;
+            }
+
+            address = address + 1;
+        }
+
+        let string = String.fromCharCode(...message).split("\0", 1)[0];
+
+        parentPort.postMessage({
+            "type": "message",
+            "message": string
+        });
+        break;
+    case 0x3: // print ram
+        address = process.registers[REG_A];
+        length = process.registers[REG_C] & 0x3FF; // max length 1024
+
+        let ram_message = "";
+
+        for (let i = 0; i < length; i++) {
+            if (address > RAM_SIZE) {
+                throw new Error("Bus Error");
+            }
+            
+            let char = String.fromCharCode(process.ram[address]);
+
+            if (char === '\0') {
+                break;
+            }
+
+            ram_message[i] = char;
+            address = address + 1;
+        }
+
+        parentPort.postMessage({
+            "type": "message",
+            "message": ram_message
+        });
+        break;
+    case 0x4: // read to ram
+        break;
+    case 0x5: // react to message
+        break;
+    default:
+        throw new Error(`Unknown Syscall ${call}`);
+    }
 }
 
 // 0x20 reserved NOP
@@ -442,6 +552,7 @@ async function runCurrentProcess(process) {
         }
     } catch (e) {
         parentPort.postMessage({ type: 'perror', uid: process.owner, error: e});
+        process.killed = true;
     }
 }
 
@@ -449,6 +560,7 @@ async function runVirtualMachine() {
     if (!isRunning) {
         isRunning = true;
 
+        // run processes
         while (current_process > 0) {
             let process = active_processes[current_process];
 
@@ -458,6 +570,21 @@ async function runVirtualMachine() {
 
             current_process--;
         }
+
+        // kill processes
+        current_process = active_processes.length - 1;
+
+        while (current_process > 0) {
+            let process = active_processes[current_process];
+
+            if (process.killed) {
+                active_processes.splice(current_process, 1);
+                parentPort.postMessage({ type: 'pexit', uid: process.owner, code: process.status});
+            }
+
+            current_process--;
+        }
+
     
         current_process = active_processes.length - 1;
 
@@ -472,7 +599,7 @@ function findProcessByOwner(owner) {
         let process = active_processes[i];
 
         if (process.owner === owner) {
-            return process;
+            return i, process;
         }
     }
 
@@ -484,7 +611,7 @@ parentPort.on('message', message => {
         let index, process = findProcessByOwner(message.owner);
 
         if (process) {
-            active_processes.splice(index, 1);
+            process.killed = true;
         }
     } else if (message.type === 'exec') {
         let index, process = findProcessByOwner(message.owner);
