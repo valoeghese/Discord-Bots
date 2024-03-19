@@ -619,13 +619,12 @@ parentPort.on('message', message => {
     } else if (message.type === 'exec') {
         let index, process = findProcessByOwner(message.owner);
 
-        let newProcess = new Process(message.owner);
-
-        if (process) {
-            active_processes[index] = newProcess;
-        } else {
-            active_processes.push(newProcess);
+        if (!process) {
+            index = active_processes.length;
+            active_processes.push(new Process(message.owner, message.channel));
         }
+
+        process.loadProcess(message.program.instructions, message.program.consts);
     } else if (message.type === 'sysreturn') {
         let index, process = findProcessByOwner(message.owner);
 
