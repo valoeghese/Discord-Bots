@@ -434,18 +434,14 @@ let active_processes = []
 let current_process = -1;
 let isRunning = false;
 
-async function runCurrentProcess() {
-    if (current_process !== -1) {
-        process = active_processes[current_process];
-
-        try {
-            // run up to 64 instructions
-            for (let i = 0; i < 64 && !process.waiting; i++) {
-                process.execNext();
-            }
-        } catch (e) {
-            parentPort.postMessage({ type: 'perror', uid: process.owner, error: e});
+async function runCurrentProcess(process) {
+    try {
+        // run up to 64 instructions
+        for (let i = 0; i < 64 && !process.waiting; i++) {
+            process.execNext();
         }
+    } catch (e) {
+        parentPort.postMessage({ type: 'perror', uid: process.owner, error: e});
     }
 }
 
@@ -454,7 +450,12 @@ async function runVirtualMachine() {
         isRunning = true;
 
         while (current_process > 0) {
-            await runCurrentProcess();
+            let process = active_processes[current_process];
+
+            if (!process.waiting) {
+                await runCurrentProcess(process);
+            }
+
             current_process--;
         }
     
@@ -466,13 +467,41 @@ async function runVirtualMachine() {
 
 // 'Interrupts'
 
+function findProcessByOwner(owner) {
+    for (let i in active_processes) {
+        let process = active_processes[i];
+
+        if (process.owner === owner) {
+            return process;
+        }
+    }
+
+    return -1, undefined;
+}
+
 parentPort.on('message', message => {
     if (message.type === 'sigkill') {
-        ;
+        let index, process = findProcessByOwner(message.owner);
+
+        if (process) {
+            active_processes.splice(index, 1);
+        }
     } else if (message.type === 'exec') {
-        ;
+        let index, process = findProcessByOwner(message.owner);
+
+        let newProcess = new Process(message.owner);
+
+        if (process) {
+            active_processes[index] = newProcess;
+        } else {
+            active_processes.push(newProcess);
+        }
     } else if (message.type === 'sysreturn') {
-        ;
+        let index, process = findProcessByOwner(message.owner);
+
+        if (process) {
+            process.waiting = false;
+        }
     }
 });
 
