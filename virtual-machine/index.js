@@ -19,12 +19,20 @@ if (isMainThread) {
         intents: [GatewayIntentBits.MessageContent, GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages]
     });
 
-
     client.on(Events.MessageCreate, async (message) => {
         if (message.author.bot) return;
 
         if (message.content.startsWith("dj$")) {
+            let command = message.content.substring(3).split(/\s+/);
+            let program = command[0];
 
+            if (program === "exec") {
+
+            } else if (program === "kill") {
+
+            } else if (program === "assemble") {
+                
+            }
         }
     });
 

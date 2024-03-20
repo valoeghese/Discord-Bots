@@ -91,29 +91,15 @@ commands[3] = function MOV(process, instruction) {
     process.registers[storeg] = process.registers[reg];
 }
 
-// 4: LOAD [reg] [ram address]
-commands[4] = function LOAD(process, instruction) {
+// 4: MOV [storeg] [val]
+commands[3] = function MOV(process, instruction) {
     const storeg = (instruction >>> 16) & 0xFF;
-    const ramAddr = (instruction) & 0xFFFF;
+    const val = instruction & 0xFFFF;
 
-    if (ramAddr >= RAM_SIZE) {
-        throw new Error("Bus Error");
-    }
-
-    process.registers[storeg] = process.ram[ramAddr];
+    process.registers[storeg] = val;
 }
 
-// 5: STOre [reg] [ram address]
-commands[5] = function STOre(process, instruction) {
-    const storeg = (instruction >>> 16) & 0xFF;
-    const ramAddr = (instruction) & 0xFFFF;
-
-    if (ramAddr >= RAM_SIZE) {
-        throw new Error("Bus Error");
-    }
-
-    process.ram[ramAddr] = process.registers[storeg];
-}
+// 5: Reserved
 
 // A: ADD [storeg] [reg] [reg]
 commands[0xA] = function ADD(process, instruction) {
@@ -409,6 +395,30 @@ commands[0x1F] = function SSHR(process, instruction) {
     const amt = (instruction >>> 8) & 0xFF;
 
     process.registers[storeg] = process.registers[storeg] >> amt;
+}
+
+// x21: LOAD [reg] [ram address]
+commands[0x21] = function LOAD(process, instruction) {
+    const storeg = (instruction >>> 16) & 0xFF;
+    const ramAddr = (instruction) & 0xFFFF;
+
+    if (ramAddr >= RAM_SIZE) {
+        throw new Error("Bus Error");
+    }
+
+    process.registers[storeg] = process.ram[ramAddr];
+}
+
+// x22: STOre [reg] [ram address]
+commands[0x22] = function STOre(process, instruction) {
+    const storeg = (instruction >>> 16) & 0xFF;
+    const ramAddr = (instruction) & 0xFFFF;
+
+    if (ramAddr >= RAM_SIZE) {
+        throw new Error("Bus Error");
+    }
+
+    process.ram[ramAddr] = process.registers[storeg];
 }
 
 // 2 Bit Instructions
