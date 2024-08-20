@@ -22,7 +22,7 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
         }
     }
 
-    if (reaction.emoji.name === '💀') {
+    if (reaction.emoji.name !== '💀') {
         return;
     }
 
