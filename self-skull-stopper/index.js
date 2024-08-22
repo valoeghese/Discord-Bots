@@ -27,7 +27,7 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
     }
 
     if (user.id === reaction.message.author.id) {
-        reaction.remove();
+        reaction.users.remove(user);
     }
 });
 
